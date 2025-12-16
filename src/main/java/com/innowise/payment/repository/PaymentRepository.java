@@ -24,7 +24,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.status = :status")
     List<Payment> findByStatus(@Param("status") String status);
 
-    @Query("SELECT COALESCE(SUM(p.paymentAmount), 0) FROM Payment p WHERE p.timeStamp " +
+    @Query("SELECT COALESCE(SUM(p.paymentAmount), 0) FROM Payment p WHERE p.timestamp " +
             "BETWEEN :beginningDate AND :endDate")
     BigDecimal getTotalPaymentsSumForDatePeriod(@Param("beginningDate") LocalDateTime beginningDate,
                                                 @Param("endDate") LocalDateTime endDate);
