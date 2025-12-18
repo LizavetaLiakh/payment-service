@@ -21,8 +21,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.userId = :userId")
     List<Payment> findByUserId(@Param("userId") Long userId);
 
-    @Query("SELECT p FROM Payment p WHERE p.status = :status")
-    List<Payment> findByStatus(@Param("status") String status);
+    @Query("SELECT p FROM Payment p WHERE p.status = :paymentStatus")
+    List<Payment> findByPaymentStatus(@Param("paymentStatus") String paymentStatus);
 
     @Query("SELECT COALESCE(SUM(p.paymentAmount), 0) FROM Payment p WHERE p.timestamp " +
             "BETWEEN :beginningDate AND :endDate")
@@ -31,9 +31,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Modifying
     @Transactional
-    @Query(value = "UPDATE payments SET order_id = :orderId, user_id = :userId, status = :status, " +
+    @Query(value = "UPDATE payments SET order_id = :orderId, user_id = :userId, status = :paymentStatus, " +
             "time_stamp = :timestamp, payment_amount = :paymentAmount WHERE id = :id", nativeQuery = true)
     int updatePayment(@Param("id") Long id, @Param("orderId") Long orderId, @Param("userId") Long userId,
-                      @Param("status") String status, @Param("timestamp") LocalDateTime timestamp,
+                      @Param("paymentStatus") String paymentStatus, @Param("timestamp") LocalDateTime timestamp,
                       @Param("paymentAmount") BigDecimal paymentAmount);
 }
