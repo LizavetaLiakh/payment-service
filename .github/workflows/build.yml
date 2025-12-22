@@ -40,12 +40,13 @@ jobs:
           --health-retries 5
 
       kafka:
-        image: bitnami/kafka:3.6
+        image: confluentinc/cp-kafka:7.4.0
         env:
           KAFKA_BROKER_ID: 1
           KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           ALLOW_PLAINTEXT_LISTENER: "yes"
         ports:
           - 9092:9092
