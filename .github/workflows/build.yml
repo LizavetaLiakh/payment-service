@@ -28,7 +28,7 @@ jobs:
           --health-retries 5
 
       zookeeper:
-        image: bitnami/zookeeper:3.9.2
+        image: bitnami/zookeeper:latest
         env:
           ALLOW_ANONYMOUS_LOGIN: "yes"
         ports:
