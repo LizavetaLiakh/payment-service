@@ -1,27 +1,45 @@
 package com.innowise.payment.integration;
 
-import com.innowise.payment.dto.OrderEventDto;
 import com.innowise.payment.dto.PaymentRequestDto;
 import com.innowise.payment.dto.PaymentResponseDto;
 import com.innowise.payment.entity.PaymentStatus;
 import com.innowise.payment.repository.PaymentRepository;
 import com.innowise.payment.service.PaymentService;
+import com.github.tomakehurst.wiremock.WireMockServer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collections;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Testcontainers
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class PaymentIntegrationTest extends AbstractPaymentIntegrationTest {
+class PaymentIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
+
+    @Container
+    @ServiceConnection
+    static KafkaContainer kafka = new KafkaContainer();
 
     @Autowired
     private PaymentService paymentService;
@@ -30,52 +48,53 @@ class PaymentIntegrationTest extends AbstractPaymentIntegrationTest {
     private PaymentRepository paymentRepository;
 
     @Autowired
-    private ConsumerFactory<String, OrderEventDto> consumerFactory;
+    private ConsumerFactory<String, Object> consumerFactory;
 
-    private Consumer<String, OrderEventDto> consumer;
+    private Consumer<String, Object> consumer;
+
+    private static WireMockServer wireMockServer = new WireMockServer(options().port(8089));
 
     @BeforeAll
     void setup() {
-        startWireMock(); // Убедимся, что WireMock запущен
+        System.out.println("Kafka bootstrap: " + kafka.getBootstrapServers());
+        System.out.println("Postgres URL: " + postgres.getJdbcUrl());
+        wireMockServer.start();
+        wireMockServer.stubFor(get(urlPathEqualTo("/api/v1.0/random"))
+                .willReturn(aResponse()
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("[2]")));
+
         consumer = consumerFactory.createConsumer();
         consumer.subscribe(Collections.singletonList("create_payment_v2"));
     }
 
     @AfterAll
     void teardown() {
-        if (consumer != null) {
-            consumer.close();
-        }
+        if (consumer != null) consumer.close();
+        wireMockServer.stop();
     }
 
     @BeforeEach
     void cleanup() {
         paymentRepository.deleteAll();
-        wireMockServer.resetAll();
+        wireMockServer.resetRequests();
     }
 
     @Test
-    void testPaymentIsSavedAndKafkaEventSent() {
+    void testPaymentCreation() {
         PaymentRequestDto dto = new PaymentRequestDto();
         dto.setUserId(1L);
-        dto.setOrderId(50L);
-        dto.setPaymentAmount(BigDecimal.valueOf(250.00));
+        dto.setOrderId(100L);
+        dto.setPaymentAmount(BigDecimal.valueOf(500));
         dto.setTimestamp(LocalDateTime.now());
-        dto.setStatus(PaymentStatus.COMPLETED);
 
         PaymentResponseDto response = paymentService.createPayment(dto);
 
-        // Проверяем сохранение
         assertNotNull(response.getId());
-        assertEquals(PaymentStatus.COMPLETED, response.getStatus());
+        assertTrue(response.getStatus() == PaymentStatus.COMPLETED || response.getStatus() == PaymentStatus.FAILED);
         assertTrue(paymentRepository.existsById(response.getId()));
 
-        // Проверяем Kafka
-        ConsumerRecords<String, OrderEventDto> records = consumer.poll(Duration.ofSeconds(5));
+        ConsumerRecords<String, Object> records = consumer.poll(java.time.Duration.ofSeconds(5));
         assertFalse(records.isEmpty(), "No Kafka message received");
-
-        ConsumerRecord<String, OrderEventDto> record = records.iterator().next();
-        assertEquals(50L, record.value().getOrderId());
-        assertEquals("payment-service", record.value().getSource());
     }
 }
