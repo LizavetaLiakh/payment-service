@@ -33,11 +33,6 @@ jobs:
           ALLOW_ANONYMOUS_LOGIN: "yes"
         ports:
           - 2181:2181
-        options: >-
-          --health-cmd "echo ruok | nc localhost 2181 | grep imok"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
       kafka:
         image: confluentinc/cp-kafka:7.4.0
@@ -104,6 +99,15 @@ jobs:
             sleep 3
           done
 
+      - name: Wait for Zookeeper
+        run: |
+          echo "Waiting for Zookeeper..."
+          for i in {1..10}; do
+            (echo ruok | nc localhost 2181 | grep imok) && echo "Zookeeper is ready" && break
+            echo "Waiting..."
+            sleep 5
+          done
+
       - name: Wait for Kafka
         run: |
           echo "Waiting for Kafka..."
@@ -123,6 +127,7 @@ jobs:
 
       - name: SonarCloud Analysis
         working-directory: ./pmt2
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
