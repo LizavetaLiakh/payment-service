@@ -1,22 +1,20 @@
 package com.innowise.payment.integration;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
 import com.innowise.payment.dto.PaymentRequestDto;
 import com.innowise.payment.dto.PaymentResponseDto;
 import com.innowise.payment.entity.PaymentStatus;
 import com.innowise.payment.repository.PaymentRepository;
 import com.innowise.payment.service.PaymentService;
-import com.github.tomakehurst.wiremock.WireMockServer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
@@ -28,18 +26,24 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PaymentIntegrationTest {
 
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15");
+    static final KafkaContainer kafka = new KafkaContainer();
 
-    @Container
-    @ServiceConnection
-    static KafkaContainer kafka = new KafkaContainer();
+    static {
+        postgres.start();
+        kafka.start();
+
+        System.setProperty("spring.datasource.url", postgres.getJdbcUrl());
+        System.setProperty("spring.datasource.username", postgres.getUsername());
+        System.setProperty("spring.datasource.password", postgres.getPassword());
+        System.setProperty("spring.kafka.bootstrap-servers", kafka.getBootstrapServers());
+        System.setProperty("random.api.base-url", "http://localhost:8089");
+    }
 
     @Autowired
     private PaymentService paymentService;
@@ -51,13 +55,10 @@ class PaymentIntegrationTest {
     private ConsumerFactory<String, Object> consumerFactory;
 
     private Consumer<String, Object> consumer;
-
-    private static WireMockServer wireMockServer = new WireMockServer(options().port(8089));
+    private static final WireMockServer wireMockServer = new WireMockServer(options().port(8089));
 
     @BeforeAll
     void setup() {
-        System.out.println("Kafka bootstrap: " + kafka.getBootstrapServers());
-        System.out.println("Postgres URL: " + postgres.getJdbcUrl());
         wireMockServer.start();
         wireMockServer.stubFor(get(urlPathEqualTo("/api/v1.0/random"))
                 .willReturn(aResponse()
@@ -72,6 +73,8 @@ class PaymentIntegrationTest {
     void teardown() {
         if (consumer != null) consumer.close();
         wireMockServer.stop();
+        kafka.stop();
+        postgres.stop();
     }
 
     @BeforeEach
@@ -91,7 +94,8 @@ class PaymentIntegrationTest {
         PaymentResponseDto response = paymentService.createPayment(dto);
 
         assertNotNull(response.getId());
-        assertTrue(response.getStatus() == PaymentStatus.COMPLETED || response.getStatus() == PaymentStatus.FAILED);
+        assertTrue(response.getStatus() == PaymentStatus.COMPLETED
+                || response.getStatus() == PaymentStatus.FAILED);
         assertTrue(paymentRepository.existsById(response.getId()));
 
         ConsumerRecords<String, Object> records = consumer.poll(java.time.Duration.ofSeconds(5));
