@@ -9,21 +9,25 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    List<Payment> findByOrderId(Long orderId);
-    List<Payment> findByUserId(Long userId);
-    List<Payment> findByStatus(String status);
+    @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId")
+    List<Payment> findByOrderId(@Param("orderId") Long orderId);
 
-    @Query(value = "SELECT COALESCE(SUM(p.paymentAmount), 0) FROM payments p " +
-            "WHERE p.time_stamp BETWEEN :beginningDate AND :endDate")
-    BigDecimal getTotalPaymentsSumForDatePeriod(@Param("beginningDate") LocalDate beginningDate,
-                                                @Param("endDate") LocalDate endDate);
+    @Query("SELECT p FROM Payment p WHERE p.userId = :userId")
+    List<Payment> findByUserId(@Param("userId") Long userId);
+
+    @Query("SELECT p FROM Payment p WHERE p.status = :status")
+    List<Payment> findByStatus(@Param("status") String status);
+
+    @Query("SELECT COALESCE(SUM(p.paymentAmount), 0) FROM Payment p WHERE p.timestamp " +
+            "BETWEEN :beginningDate AND :endDate")
+    BigDecimal getTotalPaymentsSumForDatePeriod(@Param("beginningDate") LocalDateTime beginningDate,
+                                                @Param("endDate") LocalDateTime endDate);
 
     @Modifying
     @Transactional
