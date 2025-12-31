@@ -57,7 +57,7 @@ public class PaymentService {
         return paymentMapper.toPaymentResponseDto(saved);
     }
 
-    private Integer getRandomNumber() {
+    public Integer getRandomNumber() {
         try {
             Integer[] numbers = webClient.get()
                     .uri(uriBuilder -> uriBuilder
