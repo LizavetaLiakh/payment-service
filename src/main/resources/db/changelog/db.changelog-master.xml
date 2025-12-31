@@ -7,7 +7,7 @@
 
     <changeSet id="innowise-microservice" author="Lizaveta Liakh">
         <sqlFile path="V1.1/20251217_initial_tables.sql" relativeToChangelogFile="true"/>
-        <sqlFile path="V1.1/20251208_apply_indexes.sql" relativeToChangelogFile="true"/>
+        <sqlFile path="V1.1/20251218_apply_indexes.sql" relativeToChangelogFile="true"/>
     </changeSet>
 
 </databaseChangeLog>
